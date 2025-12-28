@@ -1,546 +1,613 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+LSS → Foundry VTT D&D 5e Character Converter - Streamlit App v1.0
+Веб-приложение для конвертации персонажей из Long Story Short в Foundry VTT
+"""
+
 import streamlit as st
 import json
-from datetime import datetime
+from pathlib import Path
+from typing import Dict, Any
+import io
 
-# Page config
+# Конфигурация страницы
 st.set_page_config(
-    page_title="LSS → Foundry VTT Converter",
+    page_title="LSS → Foundry Converter",
     page_icon="⚔️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# CSS styles
+# CSS стили
 st.markdown("""
-<style>
-    .header-title {
-        color: #2d5f7e;
-        text-align: center;
-        margin-bottom: 30px;
-    }
-    .step-container {
-        background-color: #f8f9fa;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        border-left: 4px solid #2d5f7e;
-    }
-    .success-box {
-        background-color: #d4edda;
-        padding: 15px;
-        border-radius: 5px;
-        border-left: 4px solid #28a745;
-    }
-    .info-box {
-        background-color: #e7f3ff;
-        padding: 15px;
-        border-radius: 5px;
-        border-left: 4px solid #0066cc;
-    }
-</style>
+    <style>
+        .main {
+            padding: 2rem;
+        }
+        .stTabs [data-baseweb="tab-list"] button {
+            font-size: 1.1rem;
+        }
+        .success-box {
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error-box {
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+    </style>
 """, unsafe_allow_html=True)
 
-# Helper function to safely get nested values
-def safe_get(obj, *keys, default=None):
-    """Безопасное получение значения из nested dict/list"""
-    if obj is None:
-        return default
+
+class LSSToFoundryConverterV22:
+    """Конвертор персонажей из LSS в Foundry VTT D&D 5e (v2.2)"""
     
-    for key in keys:
-        if isinstance(obj, dict):
-            obj = obj.get(key)
-        elif isinstance(obj, list) and isinstance(key, int):
-            try:
-                obj = obj[key]
-            except (IndexError, TypeError):
-                return default
-        else:
-            return default
-    
-    return obj if obj is not None else default
-
-# Sidebar
-with st.sidebar:
-    st.title("ℹ️ Информация")
-    st.markdown("**Версия:** 2.2.1 (улучшенный блок видения)")
-    st.markdown("**Назначение:** Конвертация персонажей из Long Story Short в Foundry VTT")
-    
-    st.divider()
-    
-    st.markdown("### ✨ Возможности")
-    st.markdown("""
-    - ✅ Загрузка JSON файлов
-    - ✅ Выбор расы и видения
-    - ✅ Учёт классовых способностей видения
-    - ✅ Конвертация всех параметров
-    - ✅ Скачивание готового JSON
-    """)
-    
-    st.divider()
-    
-    st.markdown("### 🌐 Совместимость")
-    st.markdown("""
-    - Foundry VTT v11+
-    - D&D 5e System v4.0+
-    - Python 3.8+
-    """)
-
-# Main title
-st.markdown('<h1 class="header-title">⚔️ LSS → Foundry VTT D&D 5e Converter v2.2.1</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #666;">Конвертация персонажей из Long Story Short</p>', unsafe_allow_html=True)
-
-# STEP 1: Upload JSON file
-st.markdown('<div class="step-container"><h2>📁 Шаг 1: Загрузи JSON</h2></div>', unsafe_allow_html=True)
-
-uploaded_file = st.file_uploader(
-    "Выбери JSON файл из Long Story Short",
-    type=["json"],
-    help="Файл должен содержать данные персонажа в формате Long Story Short"
-)
-
-character_data = None
-character_info = {}
-
-if uploaded_file:
-    try:
-        file_content = uploaded_file.read().decode('utf-8')
-        raw_data = json.loads(file_content)
-        
-        # Определяем где находятся данные персонажа
-        if isinstance(raw_data, dict) and "data" in raw_data:
-            character_data = raw_data["data"]
-        elif isinstance(raw_data, dict) and "stats" in raw_data:
-            character_data = raw_data
-        else:
-            character_data = raw_data
-        
-        # Extract character info for display
-        # Функции для безопасного получения значений
-        def get_field_value(field_path):
-            """Получить значение из вложенной структуры"""
-            parts = field_path.split('.')
-            val = character_data
-            for part in parts:
-                if isinstance(val, dict):
-                    val = val.get(part)
-                else:
-                    return None
-            return val
-        
-        # Пытаемся получить данные разными способами
-        char_name = None
-        if isinstance(character_data.get("name"), dict):
-            char_name = character_data.get("name", {}).get("value", "Unknown")
-        else:
-            char_name = character_data.get("name", "Unknown")
-        
-        char_class = None
-        if isinstance(character_data.get("class"), dict):
-            char_class = character_data.get("class", {}).get("value", "Unknown")
-        else:
-            char_class = character_data.get("class", "Unknown")
-        
-        char_race = None
-        if isinstance(character_data.get("race"), dict):
-            char_race = character_data.get("race", {}).get("value", "Unknown")
-        else:
-            char_race = character_data.get("race", "Unknown")
-        
-        char_level = None
-        if isinstance(character_data.get("level"), dict):
-            char_level = character_data.get("level", {}).get("value", "Unknown")
-        else:
-            char_level = character_data.get("level", "Unknown")
-        
-        char_alignment = None
-        if isinstance(character_data.get("alignment"), dict):
-            char_alignment = character_data.get("alignment", {}).get("value", "Unknown")
-        else:
-            char_alignment = character_data.get("alignment", "Unknown")
-        
-        character_info = {
-            "Имя": char_name,
-            "Класс": char_class,
-            "Раса": char_race,
-            "Уровень": char_level,
-            "Выравнивание": char_alignment
-        }
-        
-        st.markdown('<div class="success-box">', unsafe_allow_html=True)
-        st.success("✅ JSON файл успешно загружен!")
-        col1, col2, col3, col4, col5 = st.columns(5)
-        with col1:
-            st.metric("👤 Имя", character_info["Имя"])
-        with col2:
-            st.metric("🎭 Класс", character_info["Класс"])
-        with col3:
-            st.metric("🧝 Раса", character_info["Раса"])
-        with col4:
-            st.metric("⚡ Уровень", character_info["Уровень"])
-        with col5:
-            st.metric("⚖️ Выравнивание", character_info["Выравнивание"])
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-    except json.JSONDecodeError as e:
-        st.error(f"❌ Ошибка при чтении JSON: Некорректный формат файла. {str(e)}")
-        st.stop()
-    except Exception as e:
-        st.error(f"❌ Ошибка при чтении файла: {str(e)}")
-        st.info("💡 Убедитесь что это JSON файл из Long Story Short")
-        st.stop()
-
-if not character_data:
-    st.info("👆 Загрузите JSON файл чтобы начать")
-    st.stop()
-
-# STEP 2: Settings
-st.markdown('<div class="step-container"><h2>⚙️ Шаг 2: Настройки</h2></div>', unsafe_allow_html=True)
-
-col1, col2 = st.columns(2)
-
-# Character name
-with col1:
-    character_name = st.text_input(
-        "👤 Имя персонажа",
-        value=character_info.get("Имя", ""),
-        help="Оставьте пусто чтобы использовать из файла"
-    )
-    if not character_name:
-        character_name = character_info.get("Имя", "Unknown")
-
-# Character race
-with col2:
-    race_from_file = character_info.get("Раса", "Unknown")
-    
-    race_selection = st.radio(
-        "🧝 Выбор расы",
-        ["Из файла", "Из списка", "Вручную"],
-        horizontal=True,
-        help="Выберите способ определения расы"
-    )
-    
-    popular_races = [
-        "Табакси", "Человек", "Эльф", "Полуэльф", "Полуорк",
-        "Гном", "Полулинг", "Карлик", "Драконорождённый", "Кенку",
-        "Дроу", "Дуэргар", "Тифлинг", "Аасимар", "Гоблин"
-    ]
-    
-    if race_selection == "Из файла":
-        character_race = race_from_file
-        st.caption(f"Используется из файла: **{race_from_file}**")
-    elif race_selection == "Из списка":
-        default_index = 0
-        if race_from_file in popular_races:
-            default_index = popular_races.index(race_from_file)
-        character_race = st.selectbox(
-            "Выберите расу из списка",
-            popular_races,
-            index=default_index
-        )
-    else:  # Вручную
-        character_race = st.text_input(
-            "Введите расу вручную",
-            value=race_from_file,
-            help="Введите название расы"
-        )
-
-# STEP 3: Vision Selection (NEW IMPROVED BLOCK)
-st.markdown('<div class="step-container"><h2>👁️ Шаг 3: Выбор видения</h2></div>', unsafe_allow_html=True)
-
-st.markdown("### 🔍 Видение по умолчанию (зависит от расы)")
-
-# Race to default vision mapping
-race_vision_map = {
-    "Дварф": {"type": "darkvision", "range": 60},
-    "Эльф": {"type": "darkvision", "range": 60},
-    "Высший эльф": {"type": "darkvision", "range": 60},
-    "Лесной эльф": {"type": "darkvision", "range": 60},
-    "Полуэльф": {"type": "darkvision", "range": 60},
-    "Гном": {"type": "darkvision", "range": 60},
-    "Скальный гном": {"type": "darkvision", "range": 60},
-    "Лесной гном": {"type": "darkvision", "range": 60},
-    "Тифлинг": {"type": "darkvision", "range": 60},
-    "Полуорк": {"type": "darkvision", "range": 60},
-    "Табакси": {"type": "darkvision", "range": 60},
-    "Аасимар": {"type": "darkvision", "range": 60},
-    "Кенку": {"type": "darkvision", "range": 60},
-    "Гоблин": {"type": "darkvision", "range": 60},
-    "Хобгоблин": {"type": "darkvision", "range": 60},
-    "Кобольд": {"type": "darkvision", "range": 60},
-    "Дроу": {"type": "darkvision", "range": 120},
-    "Тёмный эльф": {"type": "darkvision", "range": 120},
-    "Дуэргар": {"type": "darkvision", "range": 120},
-    "Серый дварф": {"type": "darkvision", "range": 120},
-    "Свирфнеблин": {"type": "darkvision", "range": 120},
-    "Глубинный гном": {"type": "darkvision", "range": 120},
-    "Человек": {"type": "normal", "range": 0},
-    "Полулинг": {"type": "normal", "range": 0},
-    "Драконорождённый": {"type": "normal", "range": 0},
-}
-
-# Get default vision for selected race
-default_vision = race_vision_map.get(character_race, {"type": "normal", "range": 0})
-
-st.info(f"📌 Раса '{character_race}' обычно имеет: **{default_vision['type']}** (дальность: {default_vision['range']} фт.)")
-
-# Class abilities affecting vision
-st.markdown("### 🎯 Классовые способности видения")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    has_devils_sight = st.checkbox(
-        "👿 Дьявольское зрение (Devil's Sight)",
-        value=False,
-        help="Инвокация Колдуна или Черта Адепта Метамагии. Видит в магической тьме на 120 фт."
-    )
-
-with col2:
-    has_blind_fighting = st.checkbox(
-        "⚡ Слепой бой (Blind Fighting)",
-        value=False,
-        help="Боевой стиль (Воин, Паладин, Следопыт). Слепое зрение 10 фт., видит в любой тьме"
-    )
-
-with col3:
-    has_eyes_of_night = st.checkbox(
-        "🌙 Глаза ночи (Eyes of Night)",
-        value=False,
-        help="Жрец (Сумеречный домен). Тёмное зрение 300 фт., можно давать союзникам"
-    )
-
-st.divider()
-
-# Determine final vision based on selections
-st.markdown("### 🎮 Тип и дальность видения")
-
-# If special abilities are selected, they override base vision
-final_vision_type = default_vision["type"]
-final_vision_range = default_vision["range"]
-
-if has_blind_fighting:
-    final_vision_type = "blindsight"
-    final_vision_range = 10
-    st.success("✅ Выбрано: **Слепое зрение (Blind Fighting)** - 10 фт., видит в магической тьме")
-elif has_devils_sight:
-    final_vision_type = "darkvision"
-    final_vision_range = 120
-    st.success("✅ Выбрано: **Дьявольское зрение** - 120 фт., видит в магической тьме")
-elif has_eyes_of_night:
-    final_vision_type = "darkvision"
-    final_vision_range = 300
-    st.success("✅ Выбрано: **Глаза ночи** - 300 фт.")
-else:
-    st.info(f"📌 Используется видение по умолчанию: **{final_vision_type}** - {final_vision_range} фт.")
-
-# Manual override option
-st.markdown("### 🔧 Ручной выбор (переопределение)")
-
-override_vision = st.checkbox(
-    "Переопределить видение вручную",
-    value=False,
-    help="Отметьте если хотите выбрать видение отличное от предложенного"
-)
-
-if override_vision:
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        vision_options = {
-            "normal": "🔦 Обычное (Normal)",
-            "darkvision": "🌙 Тёмное зрение (Darkvision)",
-            "blindsight": "👻 Слепое зрение (Blindsight)",
-            "truesight": "✨ Истинное зрение (Truesight)",
-            "tremorsense": "📡 Чувство вибраций (Tremorsense)"
-        }
-        
-        vision_display = st.selectbox(
-            "Выберите тип видения",
-            list(vision_options.keys()),
-            format_func=lambda x: vision_options[x],
-            index=list(vision_options.keys()).index(final_vision_type)
-        )
-        final_vision_type = vision_display
-    
-    with col2:
-        if final_vision_type != "normal":
-            final_vision_range = st.number_input(
-                "Дальность видения (ft)",
-                min_value=0,
-                value=final_vision_range,
-                step=5,
-                help="Расстояние в футах на которое видит персонаж"
-            )
-        else:
-            final_vision_range = 0
-            st.caption("Обычное зрение: без дальности")
-
-# Display final vision summary
-st.markdown('<div class="info-box">', unsafe_allow_html=True)
-st.markdown("#### 📊 Итоговое видение")
-col1, col2 = st.columns(2)
-with col1:
-    vision_names = {
-        "normal": "🔦 Обычное",
-        "darkvision": "🌙 Тёмное зрение",
-        "blindsight": "👻 Слепое видение",
-        "truesight": "✨ Истинное зрение",
-        "tremorsense": "📡 Вибрации"
+    VISION_TYPES = {
+        1: {'name': 'normal', 'foundry_mode': 'basic', 'range': 0},
+        2: {'name': 'darkvision', 'foundry_mode': 'darkvision', 'range': 60},
+        3: {'name': 'blindsight', 'foundry_mode': 'blindsight', 'range': 0},
+        4: {'name': 'truesight', 'foundry_mode': 'truesight', 'range': 500},
+        5: {'name': 'tremorsense', 'foundry_mode': 'tremorsense', 'range': 0},
     }
-    st.metric("Тип видения", vision_names.get(final_vision_type, final_vision_type))
-with col2:
-    if final_vision_range > 0:
-        st.metric("Дальность", f"{final_vision_range} фт.")
-    else:
-        st.metric("Дальность", "Не применимо")
-st.markdown('</div>', unsafe_allow_html=True)
-
-# STEP 4: Conversion
-st.markdown('<div class="step-container"><h2>🔄 Шаг 4: Конвертация</h2></div>', unsafe_allow_html=True)
-
-if st.button("🚀 КОНВЕРТИРОВАТЬ", use_container_width=True, type="primary"):
-    try:
-        # Безопасное получение значений характеристик
-        def get_ability_score(ability_key, default=10):
-            stats = character_data.get("stats", {})
-            ability = stats.get(ability_key, {})
-            if isinstance(ability, dict):
-                return ability.get("score", default)
-            return default
+    
+    SKILLS_MAP = {
+        'acrobatics': 'acr', 'investigation': 'inv', 'athletics': 'ath',
+        'perception': 'prc', 'survival': 'sur', 'animalHandling': 'ani',
+        'arcana': 'arc', 'deception': 'dec', 'history': 'his',
+        'insight': 'ins', 'intimidation': 'itm', 'medicine': 'med',
+        'nature': 'nat', 'performance': 'prf', 'persuasion': 'per',
+        'religion': 'rel', 'sleightOfHand': 'slt', 'stealth': 'ste',
+    }
+    
+    def __init__(self):
+        self.vision_config = {}
+        self.race = ''
+    
+    def set_vision_config(self, vision_data):
+        self.vision_config = vision_data
+    
+    def set_race(self, race):
+        self.race = race
+    
+    def parse_lss_json(self, lss_raw):
+        if 'data' in lss_raw and isinstance(lss_raw['data'], str):
+            try:
+                return json.loads(lss_raw['data'])
+            except json.JSONDecodeError:
+                return {}
+        return lss_raw
+    
+    def create_foundry_actor(self, lss_data, character_name=None):
+        lss_character = self.parse_lss_json(lss_data)
+        name_obj = lss_character.get('name', {})
+        name = character_name or (name_obj.get('value') if isinstance(name_obj, dict) else str(name_obj))
+        name = name.strip() or 'Новый персонаж'
         
-        # Безопасное получение HP и других параметров
-        vitality = character_data.get("vitality", {})
-        hp_current = vitality.get("hp-current", 0) if isinstance(vitality, dict) else 0
-        hp_max = vitality.get("hp-max", 0) if isinstance(vitality, dict) else 0
-        ac = vitality.get("ac", 10) if isinstance(vitality, dict) else 10
-        speed = vitality.get("speed", 30) if isinstance(vitality, dict) else 30
-        
-        # Build Foundry character
-        foundry_character = {
-            "name": character_name,
+        actor = {
+            "name": name,
             "type": "character",
             "img": "icons/svg/mystery-man.svg",
             "system": {
-                "abilities": {
-                    "str": {"value": get_ability_score("str", 10)},
-                    "dex": {"value": get_ability_score("dex", 10)},
-                    "con": {"value": get_ability_score("con", 10)},
-                    "int": {"value": get_ability_score("int", 10)},
-                    "wis": {"value": get_ability_score("wis", 10)},
-                    "cha": {"value": get_ability_score("cha", 10)}
-                },
-                "attributes": {
-                    "hp": {
-                        "value": hp_current,
-                        "max": hp_max
-                    },
-                    "ac": {
-                        "flat": ac
-                    },
-                    "movement": {
-                        "walk": speed
-                    }
-                },
-                "details": {
-                    "race": character_race,
-                    "level": character_info.get("Уровень", 1),
-                    "alignment": character_info.get("Выравнивание", "Unaligned")
-                },
-                "traits": {
-                    "languages": {
-                        "value": []
-                    }
-                }
+                "abilities": self._extract_abilities(lss_character),
+                "attributes": self._extract_attributes(lss_character),
+                "details": self._extract_details(lss_character),
+                "traits": self._extract_traits(lss_character),
+                "currency": self._extract_currency(lss_character),
+                "skills": self._extract_skills(lss_character),
             },
-            "prototypeToken": {
-                "name": character_name,
-                "displayName": 0,
-                "sight": {
-                    "enabled": final_vision_type != "normal",
-                    "range": final_vision_range if final_vision_type != "normal" else 0,
-                    "visionMode": final_vision_type if final_vision_type != "normal" else "basic"
-                },
-                "bar1": {
-                    "attribute": "attributes.hp"
-                }
-            }
+            "items": [],
+            "effects": [],
+            "flags": {},
+            "folder": None,
+            "sort": 0,
+            "ownership": {"default": 0},
+            "_stats": {"systemId": "dnd5e", "systemVersion": "4.0.0"},
+            "prototypeToken": self._create_prototype_token(name, lss_character)
         }
         
-        # Store in session state for display and download
-        st.session_state.converted_character = foundry_character
-        st.session_state.character_name = character_name
-        
-        # Show success message
-        st.markdown('<div class="success-box">', unsafe_allow_html=True)
-        st.success("✅ Конвертация успешна!")
-        
-        # Display character stats
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
-        abilities = foundry_character["system"]["abilities"]
-        with col1:
-            st.metric("STR", abilities["str"]["value"])
-        with col2:
-            st.metric("DEX", abilities["dex"]["value"])
-        with col3:
-            st.metric("CON", abilities["con"]["value"])
-        with col4:
-            st.metric("INT", abilities["int"]["value"])
-        with col5:
-            st.metric("WIS", abilities["wis"]["value"])
-        with col6:
-            st.metric("CHA", abilities["cha"]["value"])
-        
-        # Display other stats
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            hp = foundry_character["system"]["attributes"]["hp"]
-            st.metric("❤️ HP", f"{hp['value']}/{hp['max']}")
-        with col2:
-            st.metric("🛡️ AC", foundry_character["system"]["attributes"]["ac"]["flat"])
-        with col3:
-            st.metric("🏃 Скорость", f"{foundry_character['system']['attributes']['movement']['walk']} ft")
-        with col4:
-            vision_info = f"{vision_names.get(final_vision_type, final_vision_type)}"
-            if final_vision_range > 0:
-                vision_info += f" ({final_vision_range} ft)"
-            st.metric("👁️ Видение", vision_info)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-    except Exception as e:
-        st.error(f"❌ Ошибка при конвертации: {str(e)}")
-        st.info("💡 Проверьте что JSON файл содержит все необходимые данные")
-
-# STEP 5: Download and Preview
-if "converted_character" in st.session_state:
-    st.divider()
-    st.markdown('<div class="step-container"><h2>📥 Шаг 5: Скачивание и просмотр</h2></div>', unsafe_allow_html=True)
+        return actor
     
+    def _extract_abilities(self, lss_character):
+        stats_data = lss_character.get('stats', {})
+        abilities = {}
+        
+        for ability_key in ['str', 'dex', 'con', 'int', 'wis', 'cha']:
+            if ability_key in stats_data:
+                stat_obj = stats_data[ability_key]
+                value = self._parse_number(stat_obj.get('score', 10))
+            else:
+                value = 10
+            
+            abilities[ability_key] = {
+                "value": value,
+                "proficient": 0,
+                "bonuses": {"check": "", "save": ""}
+            }
+        
+        return abilities
+    
+    def _extract_attributes(self, lss_character):
+        vitality = lss_character.get('vitality', {})
+        info = lss_character.get('info', {})
+        
+        current_hp = self._parse_number(vitality.get('hp-current', {}).get('value', 0))
+        max_hp = self._parse_number(vitality.get('hp-max', {}).get('value', current_hp))
+        ac_flat = self._parse_number(vitality.get('ac', {}).get('value', 10))
+        initiative = 0
+        walk_speed = self._parse_number(vitality.get('speed', {}).get('value', 30))
+        level = self._parse_number(info.get('level', {}).get('value', 1) if isinstance(info.get('level'), dict) else info.get('level', 1))
+        prof_bonus = (level + 7) // 4 + 1
+        
+        return {
+            "ac": {"flat": ac_flat, "calc": "default", "formula": ""},
+            "hp": {"value": current_hp, "max": max_hp, "temp": 0, "tempmax": 0},
+            "init": {"bonus": initiative},
+            "movement": {"walk": walk_speed, "burrow": 0, "climb": 0, "fly": 0, "swim": 0},
+            "speed": {"value": f"{walk_speed} ft"},
+            "prof": prof_bonus
+        }
+    
+    def _extract_details(self, lss_character):
+        info = lss_character.get('info', {})
+        sub_info = lss_character.get('subInfo', {})
+        
+        def get_value(obj, default=''):
+            if isinstance(obj, dict):
+                return obj.get('value', default)
+            return obj if obj else default
+        
+        class_name = get_value(info.get('charClass'), 'Unknown')
+        level = self._parse_number(get_value(info.get('level'), 1))
+        race = self.race or get_value(info.get('race'), '')
+        background = get_value(info.get('background'), '')
+        alignment = get_value(info.get('alignment'), 'Unaligned')
+        experience = self._parse_number(get_value(info.get('experience'), 0))
+        
+        biography = f"Класс: {class_name}\n"
+        if background:
+            biography += f"Предыстория: {background}\n"
+        if get_value(sub_info.get('age')):
+            biography += f"Возраст: {get_value(sub_info.get('age'))}\n"
+        if get_value(sub_info.get('height')):
+            biography += f"Рост: {get_value(sub_info.get('height'))}\n"
+        if get_value(sub_info.get('weight')):
+            biography += f"Вес: {get_value(sub_info.get('weight'))}\n"
+        
+        return {
+            "biography": {"value": biography, "public": ""},
+            "alignment": alignment,
+            "race": race,
+            "background": background,
+            "level": level,
+            "xp": {"value": experience, "min": 0, "max": 355000}
+        }
+    
+    def _extract_traits(self, lss_character):
+        return {"size": "med", "languages": {"value": []}, "creatureType": "humanoid"}
+    
+    def _extract_currency(self, lss_character):
+        coins = lss_character.get('coins', {})
+        
+        def get_value(obj, default=0):
+            if isinstance(obj, dict):
+                return self._parse_number(obj.get('value', default))
+            return self._parse_number(obj if obj else default)
+        
+        return {
+            "pp": get_value(coins.get('pp'), 0),
+            "gp": get_value(coins.get('gp'), 0),
+            "ep": get_value(coins.get('ep'), 0),
+            "sp": get_value(coins.get('sp'), 0),
+            "cp": get_value(coins.get('cp'), 0)
+        }
+    
+    def _extract_skills(self, lss_character):
+        skills_data = lss_character.get('skills', {})
+        skills = {}
+        
+        for lss_name, foundry_code in self.SKILLS_MAP.items():
+            skills[foundry_code] = {"value": 0, "ability": self._get_skill_ability(foundry_code), "bonuses": {"check": "", "passive": ""}}
+        
+        for skill_key, skill_data in skills_data.items():
+            if isinstance(skill_data, dict):
+                is_prof = skill_data.get('isProf', 0)
+                foundry_code = self.SKILLS_MAP.get(skill_key)
+                if foundry_code and foundry_code in skills:
+                    skills[foundry_code]['value'] = int(is_prof)
+        
+        return skills
+    
+    def _create_prototype_token(self, name, lss_character):
+        return {
+            "name": name,
+            "displayName": 0,
+            "actorLink": False,
+            "width": 1,
+            "height": 1,
+            "texture": {
+                "src": "icons/svg/mystery-man.svg",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "offsetX": 0,
+                "offsetY": 0,
+                "fit": "contain",
+                "scaleX": 1,
+                "scaleY": 1,
+                "rotation": 0,
+                "tint": "#ffffff",
+                "alphaThreshold": 0.75
+            },
+            "lockRotation": False,
+            "rotation": 0,
+            "alpha": 1,
+            "disposition": -1,
+            "displayBars": 0,
+            "bar1": {"attribute": "attributes.hp"},
+            "bar2": {"attribute": None},
+            "light": {
+                "negative": False,
+                "priority": 0,
+                "alpha": 0.5,
+                "angle": 360,
+                "bright": 0,
+                "color": None,
+                "coloration": 1,
+                "dim": 0,
+                "attenuation": 0.5,
+                "luminosity": 0.5,
+                "saturation": 0,
+                "contrast": 0,
+                "shadows": 0,
+                "animation": {
+                    "type": None,
+                    "speed": 5,
+                    "intensity": 5,
+                    "reverse": False
+                },
+                "darkness": {"min": 0, "max": 1}
+            },
+            "sight": self._create_sight_config(),
+            "detectionModes": [],
+            "occludable": {"radius": 0},
+            "ring": {
+                "enabled": False,
+                "colors": {"ring": None, "background": None},
+                "effects": 1,
+                "subject": {"scale": 1, "texture": None}
+            },
+            "turnMarker": {
+                "mode": 1,
+                "animation": None,
+                "src": None,
+                "disposition": False
+            },
+            "movementAction": None,
+            "flags": {},
+            "randomImg": False,
+            "appendNumber": False,
+            "prependAdjective": False
+        }
+    
+    def _create_sight_config(self):
+        vision_type = self.vision_config.get('type', 'normal')
+        vision_range = self.vision_config.get('range', 0)
+        canvas_range = vision_range
+        
+        vision_mode = 'basic'
+        for num, config in self.VISION_TYPES.items():
+            if config['name'] == vision_type:
+                vision_mode = config['foundry_mode']
+                break
+        
+        return {
+            "enabled": vision_type != 'normal',
+            "range": canvas_range,
+            "angle": 360,
+            "visionMode": vision_mode,
+            "color": None,
+            "attenuation": 0.1,
+            "brightness": 0,
+            "saturation": 0,
+            "contrast": 0
+        }
+    
+    def _parse_number(self, value):
+        try:
+            if isinstance(value, (int, float)):
+                return int(value)
+            if isinstance(value, str):
+                clean = ''.join(c for c in value if c.isdigit() or c == '-')
+                return int(clean) if clean else 0
+            return 0
+        except (ValueError, TypeError):
+            return 0
+    
+    def _get_skill_ability(self, skill_code):
+        skill_abilities = {
+            'acr': 'dex', 'ani': 'wis', 'arc': 'int', 'ath': 'str',
+            'dec': 'cha', 'his': 'int', 'ins': 'wis', 'itm': 'cha',
+            'inv': 'int', 'med': 'wis', 'nat': 'int', 'prc': 'wis',
+            'prf': 'cha', 'per': 'cha', 'rel': 'int', 'slt': 'dex',
+            'ste': 'dex', 'sur': 'wis',
+        }
+        return skill_abilities.get(skill_code, 'str')
+
+
+# ============================================================================
+# STREAMLIT ИНТЕРФЕЙС
+# ============================================================================
+
+def main():
+    # Заголовок
+    st.title("⚔️ LSS → Foundry VTT D&D 5e Converter")
+    st.markdown("**Конвертация персонажей из Long Story Short в Foundry VTT**")
+    
+    # Боковая панель с информацией
+    with st.sidebar:
+        st.header("ℹ️ Информация")
+        st.markdown("""
+        ### Версия 2.2
+        
+        **Возможности:**
+        - ✅ Импорт персонажей из LSS
+        - ✅ Все характеристики (STR-CHA)
+        - ✅ HP, AC, движение
+        - ✅ Все 18 навыков
+        - ✅ Видение в токене
+        
+        **Поддерживаемое видение:**
+        - Normal (обычное)
+        - Darkvision (тёмное зрение)
+        - Blindsight (слепое видение)
+        - Truesight (истинное видение)
+        - Tremorsense (чувство вибраций)
+        """)
+        
+        st.divider()
+        st.markdown("**Совместимость:**")
+        st.markdown("""
+        - Python 3.6+
+        - Foundry VTT v11-v13
+        - D&D 5e v4.0+
+        """)
+    
+    # Основной контент
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        json_string = json.dumps(st.session_state.converted_character, ensure_ascii=False, indent=2)
-        st.download_button(
-            label="📥 Скачать JSON",
-            data=json_string,
-            file_name=f"{st.session_state.character_name}_foundry.json",
-            mime="application/json",
-            use_container_width=True
+        st.header("📁 Шаг 1: Загрузи JSON")
+        uploaded_file = st.file_uploader(
+            "Выбери JSON файл из Long Story Short",
+            type=['json'],
+            help="Файл должен содержать данные персонажа из LSS"
         )
+        
+        if uploaded_file is not None:
+            try:
+                lss_data = json.load(uploaded_file)
+                st.success("✅ JSON файл загружен успешно!")
+                
+                # Показываем информацию из файла
+                st.markdown("### 📋 Информация о персонаже:")
+                
+                lss_character = json.loads(lss_data['data']) if 'data' in lss_data else lss_data
+                info = lss_character.get('info', {})
+                
+                def get_value(obj, default=''):
+                    if isinstance(obj, dict):
+                        return obj.get('value', default)
+                    return obj if obj else default
+                
+                st.write(f"**Имя из файла:** {lss_character.get('name', {}).get('value', 'Unknown')}")
+                st.write(f"**Класс:** {get_value(info.get('charClass'), 'Unknown')}")
+                st.write(f"**Раса (из файла):** {get_value(info.get('race'), 'Unknown')}")
+                st.write(f"**Уровень:** {get_value(info.get('level'), 1)}")
+                st.write(f"**Выравнивание:** {get_value(info.get('alignment'), 'Unaligned')}")
+                
+            except json.JSONDecodeError:
+                st.error("❌ Ошибка: неверный формат JSON файла")
+                uploaded_file = None
+            except Exception as e:
+                st.error(f"❌ Ошибка при чтении файла: {str(e)}")
+                uploaded_file = None
     
     with col2:
-        if st.button("📄 Показать полный JSON", use_container_width=True):
-            st.session_state.show_json = not st.session_state.get("show_json", False)
+        st.header("⚙️ Шаг 2: Настройки")
+        
+        if uploaded_file is not None:
+            # Имя персонажа
+            st.subheader("👤 Имя персонажа")
+            character_name = st.text_input(
+                "Имя (если пусто, используется из файла):",
+                value=""
+            )
+            
+            # Раса
+            st.subheader("🧝 Раса")
+            popular_races = [
+                "Человек", "Эльф", "Полуэльф", "Дворф", "Полурослик", "Тифлинг",
+                "Гном", "Полуорк", "Драконорождённый", "Табакси", "Кенку", "Фирболг"
+            ]
+            
+            # Получаем расу из файла
+            default_race = lss_character.get('info', {}).get('race', {})
+            if isinstance(default_race, dict):
+                default_race = default_race.get('value', '')
+            
+            race_option = st.radio(
+                "Выберите способ ввода расы:",
+                ["Из файла", "Из списка", "Вручную"],
+                horizontal=True
+            )
+            
+            race = ""
+            if race_option == "Из файла":
+                race = default_race
+                st.write(f"✓ Раса: **{race}**")
+            elif race_option == "Из списка":
+                race = st.selectbox("Выберите расу:", popular_races)
+                st.write(f"✓ Раса: **{race}**")
+            else:  # Вручную
+                race = st.text_input("Введите расу:", value=default_race)
+            
+            # Видение
+            st.subheader("👁️ Видение")
+            vision_choice = st.radio(
+                "Тип видения:",
+                [
+                    "1️⃣ Обычное (Normal)",
+                    "2️⃣ Тёмное зрение (Darkvision)",
+                    "3️⃣ Слепое видение (Blindsight)",
+                    "4️⃣ Истинное видение (Truesight)",
+                    "5️⃣ Чувство вибраций (Tremorsense)"
+                ],
+                horizontal=False
+            )
+            
+            # Парсим выбор видения
+            vision_num = int(vision_choice[0])
+            vision_names = {
+                1: 'normal',
+                2: 'darkvision',
+                3: 'blindsight',
+                4: 'truesight',
+                5: 'tremorsense'
+            }
+            vision_type = vision_names[vision_num]
+            
+            # Дальность видения
+            if vision_type != 'normal':
+                default_ranges = {
+                    'darkvision': 60,
+                    'blindsight': 60,
+                    'truesight': 120,
+                    'tremorsense': 60
+                }
+                vision_range = st.number_input(
+                    f"Дальность видения (ft):",
+                    min_value=0,
+                    value=default_ranges.get(vision_type, 60),
+                    step=10
+                )
+            else:
+                vision_range = 0
+            
+            st.write(f"✓ Видение: **{vision_choice}** ({vision_range} ft)" if vision_range else f"✓ Видение: **{vision_choice}**")
     
-    if st.session_state.get("show_json", False):
-        with st.expander("📋 Полный JSON", expanded=True):
-            st.json(st.session_state.converted_character)
+    # Разделитель
+    st.divider()
+    
+    # Кнопка конвертации и результат
+    st.header("🔄 Шаг 3: Конвертация")
+    
+    if uploaded_file is not None:
+        col1, col2, col3 = st.columns([1, 1, 1])
+        
+        with col2:
+            convert_button = st.button(
+                "🚀 КОНВЕРТИРОВАТЬ",
+                type="primary",
+                use_container_width=True
+            )
+        
+        if convert_button:
+            try:
+                # Создаём конвертер
+                converter = LSSToFoundryConverterV22()
+                converter.set_race(race)
+                converter.set_vision_config({
+                    'type': vision_type,
+                    'range': vision_range,
+                    'enabled': vision_type != 'normal'
+                })
+                
+                # Конвертируем
+                foundry_actor = converter.create_foundry_actor(lss_data, character_name if character_name else None)
+                
+                # Показываем результат
+                st.markdown("### ✅ Конвертация успешна!")
+                
+                result_col1, result_col2 = st.columns([1, 1])
+                
+                with result_col1:
+                    st.markdown("**📊 Параметры персонажа:**")
+                    system = foundry_actor['system']
+                    
+                    st.write(f"👤 **Имя:** {foundry_actor['name']}")
+                    st.write(f"🧝 **Раса:** {system['details']['race']}")
+                    st.write(f"📈 **Уровень:** {system['details']['level']}")
+                    st.write(f"❤️ **HP:** {system['attributes']['hp']['value']}/{system['attributes']['hp']['max']}")
+                    st.write(f"🛡️ **AC:** {system['attributes']['ac']['flat']}")
+                    st.write(f"🏃 **Скорость:** {system['attributes']['speed']['value']}")
+                
+                with result_col2:
+                    st.markdown("**📋 Характеристики:**")
+                    abilities_text = f"""
+STR: **{system['abilities']['str']['value']}**  
+DEX: **{system['abilities']['dex']['value']}**  
+CON: **{system['abilities']['con']['value']}**  
+INT: **{system['abilities']['int']['value']}**  
+WIS: **{system['abilities']['wis']['value']}**  
+CHA: **{system['abilities']['cha']['value']}**  
+                    """
+                    st.markdown(abilities_text)
+                
+                st.divider()
+                
+                st.markdown("**👁️ Видение в токене:**")
+                sight = foundry_actor['prototypeToken']['sight']
+                st.write(f"Включено: **{sight['enabled']}**")
+                st.write(f"Тип: **{sight['visionMode']}**")
+                st.write(f"Дальность: **{sight['range']}** ft")
+                
+                st.divider()
+                
+                # Кнопки скачивания
+                json_string = json.dumps(foundry_actor, ensure_ascii=False, indent=2)
+                
+                col1, col2, col3 = st.columns([1, 1, 1])
+                
+                with col1:
+                    st.download_button(
+                        label="📥 Скачать JSON",
+                        data=json_string,
+                        file_name=f"{foundry_actor['name']}_foundry.json",
+                        mime="application/json",
+                        use_container_width=True
+                    )
+                
+                with col2:
+                    # Показать JSON в ekspander
+                    with st.expander("📄 Показать JSON"):
+                        st.json(foundry_actor)
+                
+                # Сохраняем в session state
+                st.session_state.last_result = foundry_actor
+                st.session_state.conversion_success = True
+                
+            except Exception as e:
+                st.error(f"❌ Ошибка при конвертации: {str(e)}")
+                import traceback
+                st.error(traceback.format_exc())
+    else:
+        st.info("👆 Загрузите JSON файл из Long Story Short, чтобы начать")
+    
+    # Футер
+    st.divider()
+    st.markdown("""
+    ---
+    **LSS → Foundry VTT Converter v2.2** | Конвертер персонажей для D&D 5e
+    
+    📚 [Документация](https://github.com) | 🐛 [Сообщить об ошибке](https://github.com)
+    """)
 
-# Footer
-st.divider()
-st.markdown("""
-<div style='text-align: center; color: #666; margin-top: 30px;'>
-    <p>⚔️ LSS → Foundry VTT D&D 5e Converter v2.2.1</p>
-    <p style='font-size: 12px;'>Последнее обновление: 2025-12-28</p>
-</div>
-""", unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
