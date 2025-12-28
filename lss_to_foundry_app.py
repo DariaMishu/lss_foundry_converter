@@ -458,133 +458,139 @@ def main():
                 race = st.text_input("Введите расу:", value=default_race)
             
             # Видение
+            # Видение
             st.subheader("👁️ Видение")
 
-            # Таблица видения по расам
-            RACE_VISION_CONFIG = {
-                "Табакси": {"type": "darkvision", "range": 60},
-                "Дварф": {"type": "darkvision", "range": 60},
-                "Карлик": {"type": "darkvision", "range": 60},
-                "Эльф": {"type": "darkvision", "range": 60},
-                "Полуэльф": {"type": "darkvision", "range": 60},
-                "Гном": {"type": "darkvision", "range": 60},
-                "Полуорк": {"type": "darkvision", "range": 60},
-                "Полулинг": {"type": "normal", "range": 0},
-                "Человек": {"type": "normal", "range": 0},
-                "Драконорождённый": {"type": "normal", "range": 0},
-                "Кенку": {"type": "darkvision", "range": 60},
-                "Дроу": {"type": "darkvision", "range": 120},
-                "Дуэргар": {"type": "darkvision", "range": 120},
+            # Определяем видение по умолчанию в зависимости от расы
+            race_vision_defaults = {
+                "Дварф": ("darkvision", 60),
+                "Карлик": ("darkvision", 60),
+                "Эльф": ("darkvision", 60),
+                "Полуэльф": ("darkvision", 60),
+                "Гном": ("darkvision", 60),
+                "Тифлинг": ("darkvision", 60),
+                "Полуорк": ("darkvision", 60),
+                "Табакси": ("darkvision", 60),
+                "Аасимар": ("darkvision", 60),
+                "Дроу": ("darkvision", 120),
+                "Дуэргар": ("darkvision", 120),
+                "Глубинный гном": ("darkvision", 120),
+                "Человек": ("normal", 0),
+                "Полулинг": ("normal", 0),
+                "Драконорождённый": ("normal", 0),
+                "Кенку": ("darkvision", 60),
             }
 
-            # Определяем видение по умолчанию для расы
-            default_vision_by_race = RACE_VISION_CONFIG.get(race, {"type": "normal", "range": 0})
+            # Получаем стандартное видение для выбранной расы
+            default_vision_type, default_vision_range = race_vision_defaults.get(race, ("normal", 0))
 
-            # Чекбоксы для классовых способностей
-            col1, col2 = st.columns(2)
-            with col1:
-                has_devil_sight = st.checkbox(
-                    "👿 Дьявольское зрение (Devil's Sight)",
-                    value=False,
-                    help="Инвокация колдуна - видит в магической тьме на 120 фт"
+            # Опциональные способности (чекбоксы)
+            col_devils, col_blind = st.columns(2)
+            with col_devils:
+                has_devils_sight = st.checkbox(
+                    "🔴 Взор дьявола (Devil's Sight)",
+                    help="Позволяет видеть в магической тьме на 120 фт (например, инвокация колдуна)"
                 )
-            with col2:
+            with col_blind:
                 has_blind_fighting = st.checkbox(
-                    "⚔️ Боевой стиль: Слепой бой (Blind Fighting)",
-                    value=False,
-                    help="Видит невидимые существа на 10 фт"
+                    "⚫ Боевой стиль Слепой бой (Blind Fighting)",
+                    help="Позволяет видеть в любой тьме на 10 фт (видит невидимых и через тьму)"
                 )
 
-            # Выбор типа видения
-            vision_choice = st.radio(
-                "Тип видения:",
-                [
-                    "1️⃣ Обычное (Normal)",
-                    "2️⃣ Тёмное зрение (Darkvision)",
-                    "3️⃣ Слепое видение (Blindsight)",
-                    "4️⃣ Истинное видение (Truesight)",
-                    "5️⃣ Чувство вибраций (Tremorsense)"
-                ],
-                horizontal=False
-            )
+            # Логика определения финального видения
+            final_vision_type = default_vision_type
+            final_vision_range = default_vision_range
 
-            # Парсим выбор видения
-            vision_num = int(vision_choice[0])
-            vision_names = {
-                1: 'normal',
-                2: 'darkvision',
-                3: 'blindsight',
-                4: 'truesight',
-                5: 'tremorsense'
-            }
-            vision_type = vision_names[vision_num]
+            # Если есть "Боевой стиль Слепой бой" - он имеет приоритет (10 фт, видит всё)
+            if has_blind_fighting:
+                final_vision_type = "blindsight"
+                final_vision_range = 10
+            # Если есть "Взор дьявола" - увеличиваем дальность тёмного зрения до 120 фт
+            elif has_devils_sight and default_vision_type == "darkvision":
+                final_vision_type = "darkvision"
+                final_vision_range = 120
 
-            # Дальность видения
-            if vision_type != 'normal':
-                default_ranges = {
-                    'darkvision': default_vision_by_race.get("range", 60),
-                    'blindsight': 60,
-                    'truesight': 120,
-                    'tremorsense': 60
-                }
-                vision_range = st.number_input(
-                    f"Дальность видения (ft):",
-                    min_value=0,
-                    value=default_ranges.get(vision_type, 60),
-                    step=10
+            st.write("**Видение по умолчанию (на основе расы):**")
+            st.write(f"└─ Тип: **{default_vision_type}**, Дальность: **{default_vision_range if default_vision_range > 0 else 'N/A'} ft**")
+
+            # Ручной выбор (опционально переопределить)
+            with st.expander("⚙️ Переопределить видение вручную", expanded=False):
+                manual_vision_choice = st.radio(
+                    "Выбрать тип видения вручную:",
+                    [
+                        "1️⃣ Обычное (Normal)",
+                        "2️⃣ Тёмное зрение (Darkvision)",
+                        "3️⃣ Слепое видение (Blindsight)",
+                        "4️⃣ Истинное видение (Truesight)",
+                        "5️⃣ Чувство вибраций (Tremorsense)"
+                    ],
+                    horizontal=False,
+                    key="manual_vision"
                 )
-            else:
-                vision_range = 0
 
-            # РАСЧЁТ ФИНАЛЬНОГО ВИДЕНИЯ
-            final_vision_type = vision_type
-            final_vision_range = vision_range
-
-            # Если выбрано "Обычное" но есть способности - используем их
-            if vision_type == 'normal':
-                if has_devil_sight:
-                    final_vision_type = 'darkvision'
-                    final_vision_range = 120
-                elif has_blind_fighting:
-                    final_vision_type = 'blindsight'
-                    final_vision_range = 10
-                elif default_vision_by_race["type"] != 'normal':
-                    final_vision_type = default_vision_by_race["type"]
-                    final_vision_range = default_vision_by_race["range"]
-            else:
-                # Если выбран конкретный тип видения, учитываем дьявольское зрение
-                if has_devil_sight and vision_type == 'darkvision':
-                    if final_vision_range < 120:
-                        final_vision_range = 120
-
-            # Вывод финальных параметров видения
-            st.write("---")
-            st.write("**📊 Финальные параметры видения:**")
-
-            final_display = []
-            if final_vision_type != 'normal':
-                vision_type_display = {
-                    'darkvision': 'Тёмное зрение',
-                    'blindsight': 'Слепое видение',
-                    'truesight': 'Истинное видение',
-                    'tremorsense': 'Чувство вибраций'
+                # Парсим выбор видения
+                manual_vision_num = int(manual_vision_choice[0])
+                vision_names = {
+                    1: 'normal',
+                    2: 'darkvision',
+                    3: 'blindsight',
+                    4: 'truesight',
+                    5: 'tremorsense'
                 }
-                final_display.append(f"🔍 **Тип:** {vision_type_display.get(final_vision_type, final_vision_type)}")
-                final_display.append(f"📏 **Дальность:** {final_vision_range} ft")
-                if has_devil_sight and final_vision_type == 'darkvision':
-                    final_display.append(f"👿 **Видит в магической тьме:** ДА")
-                elif has_blind_fighting and final_vision_type == 'blindsight':
-                    final_display.append(f"⚔️ **Видит невидимое:** ДА")
+                manual_vision_type = vision_names[manual_vision_num]
+
+                # Дальность видения
+                if manual_vision_type != 'normal':
+                    default_ranges = {
+                        'darkvision': 60,
+                        'blindsight': 60,
+                        'truesight': 120,
+                        'tremorsense': 60
+                    }
+                    manual_vision_range = st.number_input(
+                        f"Дальность видения (ft):",
+                        min_value=0,
+                        value=default_ranges.get(manual_vision_type, 60),
+                        step=10,
+                        key="manual_range"
+                    )
                 else:
-                    final_display.append(f"👿 **Видит в магической тьме:** НЕТ")
+                    manual_vision_range = 0
+
+                # Переопределяем финальное видение если вручную выбрано
+                final_vision_type = manual_vision_type
+                final_vision_range = manual_vision_range
+
+                st.write(f"└─ **Выбрано вручную:** {manual_vision_choice}")
+
+            # Отображение финального видения с учётом всех параметров
+            st.divider()
+            st.write("**✓ ФИНАЛЬНЫЕ ПАРАМЕТРЫ ВИДЕНИЯ:**")
+
+            vision_display_lines = []
+            vision_display_lines.append(f"  Основное видение: **{final_vision_type}**")
+            if final_vision_range > 0:
+                vision_display_lines.append(f"  Дальность: **{final_vision_range} ft**")
+
+            if has_devils_sight:
+                vision_display_lines.append(f"  🔴 Взор дьявола: **видит в магической тьме** (+120 фт для тёмного зрения)")
+
+            if has_blind_fighting:
+                vision_display_lines.append(f"  ⚫ Боевой стиль Слепой бой: **видит в любой тьме** (10 фт, видит невидимых)")
+
+            for line in vision_display_lines:
+                st.write(line)
+
+            # Определяем может ли видеть в магической тьме
+            can_see_magical_darkness = has_blind_fighting or (has_devils_sight and final_vision_type == "darkvision") or final_vision_type in ["truesight", "blindsight"]
+
+            if can_see_magical_darkness:
+                st.info("✅ Может видеть в **магической тьме** (например, заклинание Darkness)")
             else:
-                final_display.append("🔍 **Тип:** Обычное зрение")
-                final_display.append("📏 **Дальность:** Без ограничений")
+                st.warning("❌ НЕ может видеть в магической тьме (заклинание Darkness заблокирует видение)")
 
-            for display_text in final_display:
-                st.write(f"✓ {display_text}")
-
-    st.divider()    
+    st.divider()
+    
     # Кнопка конвертации и результат
     st.header("🔄 Шаг 3: Конвертация")
     
