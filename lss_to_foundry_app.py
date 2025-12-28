@@ -40,6 +40,25 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Helper function to safely get nested values
+def safe_get(obj, *keys, default=None):
+    """Безопасное получение значения из nested dict/list"""
+    if obj is None:
+        return default
+    
+    for key in keys:
+        if isinstance(obj, dict):
+            obj = obj.get(key)
+        elif isinstance(obj, list) and isinstance(key, int):
+            try:
+                obj = obj[key]
+            except (IndexError, TypeError):
+                return default
+        else:
+            return default
+    
+    return obj if obj is not None else default
+
 # Sidebar
 with st.sidebar:
     st.title("ℹ️ Информация")
@@ -87,19 +106,64 @@ if uploaded_file:
         file_content = uploaded_file.read().decode('utf-8')
         raw_data = json.loads(file_content)
         
-        # Parse character data
-        if "data" in raw_data:
+        # Определяем где находятся данные персонажа
+        if isinstance(raw_data, dict) and "data" in raw_data:
             character_data = raw_data["data"]
+        elif isinstance(raw_data, dict) and "stats" in raw_data:
+            character_data = raw_data
         else:
             character_data = raw_data
         
         # Extract character info for display
+        # Функции для безопасного получения значений
+        def get_field_value(field_path):
+            """Получить значение из вложенной структуры"""
+            parts = field_path.split('.')
+            val = character_data
+            for part in parts:
+                if isinstance(val, dict):
+                    val = val.get(part)
+                else:
+                    return None
+            return val
+        
+        # Пытаемся получить данные разными способами
+        char_name = None
+        if isinstance(character_data.get("name"), dict):
+            char_name = character_data.get("name", {}).get("value", "Unknown")
+        else:
+            char_name = character_data.get("name", "Unknown")
+        
+        char_class = None
+        if isinstance(character_data.get("class"), dict):
+            char_class = character_data.get("class", {}).get("value", "Unknown")
+        else:
+            char_class = character_data.get("class", "Unknown")
+        
+        char_race = None
+        if isinstance(character_data.get("race"), dict):
+            char_race = character_data.get("race", {}).get("value", "Unknown")
+        else:
+            char_race = character_data.get("race", "Unknown")
+        
+        char_level = None
+        if isinstance(character_data.get("level"), dict):
+            char_level = character_data.get("level", {}).get("value", "Unknown")
+        else:
+            char_level = character_data.get("level", "Unknown")
+        
+        char_alignment = None
+        if isinstance(character_data.get("alignment"), dict):
+            char_alignment = character_data.get("alignment", {}).get("value", "Unknown")
+        else:
+            char_alignment = character_data.get("alignment", "Unknown")
+        
         character_info = {
-            "Имя": character_data.get("name", {}).get("value", "Unknown"),
-            "Класс": character_data.get("class", {}).get("value", "Unknown"),
-            "Раса": character_data.get("race", {}).get("value", "Unknown"),
-            "Уровень": character_data.get("level", {}).get("value", "Unknown"),
-            "Выравнивание": character_data.get("alignment", {}).get("value", "Unknown")
+            "Имя": char_name,
+            "Класс": char_class,
+            "Раса": char_race,
+            "Уровень": char_level,
+            "Выравнивание": char_alignment
         }
         
         st.markdown('<div class="success-box">', unsafe_allow_html=True)
@@ -117,8 +181,12 @@ if uploaded_file:
             st.metric("⚖️ Выравнивание", character_info["Выравнивание"])
         st.markdown('</div>', unsafe_allow_html=True)
         
+    except json.JSONDecodeError as e:
+        st.error(f"❌ Ошибка при чтении JSON: Некорректный формат файла. {str(e)}")
+        st.stop()
     except Exception as e:
         st.error(f"❌ Ошибка при чтении файла: {str(e)}")
+        st.info("💡 Убедитесь что это JSON файл из Long Story Short")
         st.stop()
 
 if not character_data:
@@ -161,10 +229,13 @@ with col2:
         character_race = race_from_file
         st.caption(f"Используется из файла: **{race_from_file}**")
     elif race_selection == "Из списка":
+        default_index = 0
+        if race_from_file in popular_races:
+            default_index = popular_races.index(race_from_file)
         character_race = st.selectbox(
             "Выберите расу из списка",
             popular_races,
-            index=popular_races.index(race_from_file) if race_from_file in popular_races else 0
+            index=default_index
         )
     else:  # Вручную
         character_race = st.text_input(
@@ -329,6 +400,21 @@ st.markdown('<div class="step-container"><h2>🔄 Шаг 4: Конвертаци
 
 if st.button("🚀 КОНВЕРТИРОВАТЬ", use_container_width=True, type="primary"):
     try:
+        # Безопасное получение значений характеристик
+        def get_ability_score(ability_key, default=10):
+            stats = character_data.get("stats", {})
+            ability = stats.get(ability_key, {})
+            if isinstance(ability, dict):
+                return ability.get("score", default)
+            return default
+        
+        # Безопасное получение HP и других параметров
+        vitality = character_data.get("vitality", {})
+        hp_current = vitality.get("hp-current", 0) if isinstance(vitality, dict) else 0
+        hp_max = vitality.get("hp-max", 0) if isinstance(vitality, dict) else 0
+        ac = vitality.get("ac", 10) if isinstance(vitality, dict) else 10
+        speed = vitality.get("speed", 30) if isinstance(vitality, dict) else 30
+        
         # Build Foundry character
         foundry_character = {
             "name": character_name,
@@ -336,29 +422,29 @@ if st.button("🚀 КОНВЕРТИРОВАТЬ", use_container_width=True, type
             "img": "icons/svg/mystery-man.svg",
             "system": {
                 "abilities": {
-                    "str": {"value": character_data.get("stats", {}).get("str", {}).get("score", 10)},
-                    "dex": {"value": character_data.get("stats", {}).get("dex", {}).get("score", 10)},
-                    "con": {"value": character_data.get("stats", {}).get("con", {}).get("score", 10)},
-                    "int": {"value": character_data.get("stats", {}).get("int", {}).get("score", 10)},
-                    "wis": {"value": character_data.get("stats", {}).get("wis", {}).get("score", 10)},
-                    "cha": {"value": character_data.get("stats", {}).get("cha", {}).get("score", 10)}
+                    "str": {"value": get_ability_score("str", 10)},
+                    "dex": {"value": get_ability_score("dex", 10)},
+                    "con": {"value": get_ability_score("con", 10)},
+                    "int": {"value": get_ability_score("int", 10)},
+                    "wis": {"value": get_ability_score("wis", 10)},
+                    "cha": {"value": get_ability_score("cha", 10)}
                 },
                 "attributes": {
                     "hp": {
-                        "value": character_data.get("vitality", {}).get("hp-current", 0),
-                        "max": character_data.get("vitality", {}).get("hp-max", 0)
+                        "value": hp_current,
+                        "max": hp_max
                     },
                     "ac": {
-                        "flat": character_data.get("vitality", {}).get("ac", 10)
+                        "flat": ac
                     },
                     "movement": {
-                        "walk": character_data.get("vitality", {}).get("speed", 30)
+                        "walk": speed
                     }
                 },
                 "details": {
                     "race": character_race,
-                    "level": character_data.get("level", {}).get("value", 1),
-                    "alignment": character_data.get("alignment", {}).get("value", "Unaligned")
+                    "level": character_info.get("Уровень", 1),
+                    "alignment": character_info.get("Выравнивание", "Unaligned")
                 },
                 "traits": {
                     "languages": {
@@ -423,6 +509,7 @@ if st.button("🚀 КОНВЕРТИРОВАТЬ", use_container_width=True, type
         
     except Exception as e:
         st.error(f"❌ Ошибка при конвертации: {str(e)}")
+        st.info("💡 Проверьте что JSON файл содержит все необходимые данные")
 
 # STEP 5: Download and Preview
 if "converted_character" in st.session_state:
