@@ -85,11 +85,17 @@ class LSSToFoundryConverterV22:
         return lss_raw
     
     def create_foundry_actor(self, lss_data, character_name=None):
+        """Создаёт актёра для Foundry VTT с правильными параметрами."""
+
         lss_character = self.parse_lss_json(lss_data)
         name_obj = lss_character.get('name', {})
         name = character_name or (name_obj.get('value') if isinstance(name_obj, dict) else str(name_obj))
         name = name.strip() or 'Новый персонаж'
-        
+
+        # ════════════════════════════════════════════════════════════════════════════════
+        # СОЗДАЁМ АКТЁРА
+        # ════════════════════════════════════════════════════════════════════════════════
+
         actor = {
             "name": name,
             "type": "character",
@@ -111,9 +117,21 @@ class LSSToFoundryConverterV22:
             "_stats": {"systemId": "dnd5e", "systemVersion": "4.0.0"},
             "prototypeToken": self._create_prototype_token(name, lss_character)
         }
-        
+
+        # ════════════════════════════════════════════════════════════════════════════════
+        # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: УСТАНОВИ ПАРАМЕТРЫ ТОКЕНА НА ПРАВИЛЬНОМ УРОВНЕ
+        # ════════════════════════════════════════════════════════════════════════════════
+
+        # Foundry VTT ищет эти параметры ИМЕННО в prototypeToken!
+        actor["prototypeToken"]["displayName"] = 20
+        actor["prototypeToken"]["actorLink"] = True
+        actor["prototypeToken"]["lockRotation"] = True
+        actor["prototypeToken"]["disposition"] = 1
+        actor["prototypeToken"]["displayBars"] = 20
+
         return actor
-    
+
+
     def _extract_abilities(self, lss_character):
         stats_data = lss_character.get('stats', {})
         abilities = {}
@@ -226,38 +244,12 @@ class LSSToFoundryConverterV22:
     
     def _create_prototype_token(self, name, lss_character):
         """Создаёт стандартный прототип токена для персонажа."""
-
-        # Сначала получаем конфиг видения
-        sight_config = self._create_sight_config()
-
-        # Затем создаём токен с ВСЕ МИ параметрами в правильном порядке
         return {
-            # ════════════════════════════════════════════════════════════════════════
-            # БАЗОВЫЕ ПАРАМЕТРЫ ТОКЕНА
-            # ════════════════════════════════════════════════════════════════════════
-
-            "name": name,                           # Имя фишки
-            "width": 1,                             # Ширина в клетках
-            "height": 1,                            # Высота в клетках
-
-            # ════════════════════════════════════════════════════════════════════════
-            # ОТОБРАЖЕНИЕ И ВИДИМОСТЬ (CRITICAL!)
-            # ════════════════════════════════════════════════════════════════════════
-
-            "displayName": 20,                      # 20 = видно всем (GM + players)
-            "displayBars": 20,                      # 20 = полоски видны всем
-
-            # ════════════════════════════════════════════════════════════════════════
-            # СВЯЗЬ С АКТЁРОМ И УПРАВЛЕНИЕ
-            # ════════════════════════════════════════════════════════════════════════
-
-            "actorLink": True,                      # Синхронизирован с актёром
-            "lockRotation": True,                   # Не вращается
-
-            # ════════════════════════════════════════════════════════════════════════
-            # ВНЕШНИЙ ВИД
-            # ════════════════════════════════════════════════════════════════════════
-
+            "name": name,
+            "displayName": 20,
+            "actorLink": True,
+            "width": 1,
+            "height": 1,
             "texture": {
                 "src": "icons/svg/mystery-man.svg",
                 "anchorX": 0.5,
@@ -271,31 +263,13 @@ class LSSToFoundryConverterV22:
                 "tint": "#ffffff",
                 "alphaThreshold": 0.75
             },
-
+            "lockRotation": True,
             "rotation": 0,
             "alpha": 1,
-
-            # ════════════════════════════════════════════════════════════════════════
-            # ОТНОШЕНИЕ К ИГРОКАМ
-            # ════════════════════════════════════════════════════════════════════════
-
-            "disposition": 1,                       # 1 = friendly (голубой контур)
-
-            # ════════════════════════════════════════════════════════════════════════
-            # ПОЛОСКИ ИНФОРМАЦИИ
-            # ════════════════════════════════════════════════════════════════════════
-
-            "bar1": {
-                "attribute": "attributes.hp"        # Показывает HP
-            },
-            "bar2": {
-                "attribute": None
-            },
-
-            # ════════════════════════════════════════════════════════════════════════
-            # СВЕТ
-            # ════════════════════════════════════════════════════════════════════════
-
+            "disposition": 1,
+            "displayBars": 20,
+            "bar1": {"attribute": "attributes.hp"},
+            "bar2": {"attribute": None},
             "light": {
                 "negative": False,
                 "priority": 0,
@@ -316,37 +290,16 @@ class LSSToFoundryConverterV22:
                     "intensity": 5,
                     "reverse": False
                 },
-                "darkness": {
-                    "min": 0,
-                    "max": 1
-                }
+                "darkness": {"min": 0, "max": 1}
             },
-
-            # ════════════════════════════════════════════════════════════════════════
-            # ВИДЕНИЕ (ДИНАМИЧЕСКОЕ!)
-            # ════════════════════════════════════════════════════════════════════════
-
-            "sight": sight_config,                  # Видение персонажа
+            "sight": self._create_sight_config(),
             "detectionModes": [],
-
-            # ════════════════════════════════════════════════════════════════════════
-            # ПРОЧИЕ ПАРАМЕТРЫ
-            # ════════════════════════════════════════════════════════════════════════
-
-            "occludable": {
-                "radius": 0
-            },
+            "occludable": {"radius": 0},
             "ring": {
                 "enabled": False,
-                "colors": {
-                    "ring": None,
-                    "background": None
-                },
+                "colors": {"ring": None, "background": None},
                 "effects": 1,
-                "subject": {
-                    "scale": 1,
-                    "texture": None
-                }
+                "subject": {"scale": 1, "texture": None}
             },
             "turnMarker": {
                 "mode": 1,
