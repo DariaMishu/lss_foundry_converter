@@ -582,7 +582,7 @@ def main():
                 st.write(line)
 
             # Определяем может ли видеть в магической тьме
-            can_see_magical_darkness = has_blind_fighting or (has_devils_sight and final_vision_type == "darkvision") or final_vision_type in ["truesight", "blindsight"]
+            can_see_magical_darkness = has_blind_fighting or has_devils_sight or final_vision_type in ["truesight", "blindsight"]
 
             if can_see_magical_darkness:
                 st.info("✅ Может видеть в **магической тьме** (например, заклинание Darkness)")
