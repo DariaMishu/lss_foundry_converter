@@ -227,8 +227,8 @@ class LSSToFoundryConverterV22:
     def _create_prototype_token(self, name, lss_character):
         return {
             "name": name,
-            "displayName": 0,
-            "actorLink": False,
+            "displayName": 20,
+            "actorLink": True,
             "width": 1,
             "height": 1,
             "texture": {
@@ -244,11 +244,11 @@ class LSSToFoundryConverterV22:
                 "tint": "#ffffff",
                 "alphaThreshold": 0.75
             },
-            "lockRotation": False,
+            "lockRotation": True,
             "rotation": 0,
             "alpha": 1,
-            "disposition": -1,
-            "displayBars": 0,
+            "disposition": 1,
+            "displayBars": 20,
             "bar1": {"attribute": "attributes.hp"},
             "bar2": {"attribute": None},
             "light": {
