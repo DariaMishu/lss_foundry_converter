@@ -470,28 +470,10 @@ class LSSToFoundryConverterV22:
             "turnMarker": {
                 "mode": 1,
                 "animation": None,
-            "light": {
-                "negative": False,
-                "priority": 0,
-                "alpha": 0.5,
-                "angle": 360,
-                "bright": 0,
-                "color": None,
-                "coloration": 1,
-                "dim": 0,
-                "attenuation": 0.5,
-                "luminosity": 0.5,
-                "saturation": 0,
-                "contrast": 0,
-                "shadows": 0,
-                "animation": {
-                    "type": None,
-                    "speed": 5,
-                    "intensity": 5,
-                    "reverse": False
-                },
-                "darkness": {"min": 0, "max": 1}
+                "src": None,
+                "disposition": False
             },
+
             "sight": self._create_sight_config(),
             "detectionModes": [],
             "occludable": {"radius": 0},
