@@ -474,28 +474,8 @@ class LSSToFoundryConverterV22:
                 "disposition": False
             },
 
-            "sight": self._create_sight_config(),
-            "detectionModes": [],
-            "occludable": {"radius": 0},
-            "ring": {
-                "enabled": False,
-                "colors": {"ring": None, "background": None},
-                "effects": 1,
-                "subject": {"scale": 1, "texture": None}
-            },
-            "turnMarker": {
-                "mode": 1,
-                "animation": None,
-                "src": None,
-                "disposition": False
-            },
-            "movementAction": None,
-            "flags": {},
-            "randomImg": False,
-            "appendNumber": False,
-            "prependAdjective": False
         }
-    
+
     def _create_sight_config(self):
         vision_type = self.vision_config.get('type', 'normal')
         vision_range = self.vision_config.get('range', 0)
