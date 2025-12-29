@@ -609,10 +609,21 @@ def main():
                 # Создаём конвертер
                 converter = LSSToFoundryConverterV22()
                 converter.set_race(race)
+
+                # Заглушка для обработки ошибок с видением
+                try:
+                    vision_type_final = final_vision_type
+                    vision_range_final = final_vision_range
+                except NameError:
+                    # Если переменные не определены, используем дефолтные значения
+                    st.warning("⚠️ Ошибка определения видения, используется стандартное (Normal) видение")
+                    vision_type_final = 'normal'
+                    vision_range_final = 0
+
                 converter.set_vision_config({
-                    'type': vision_type,
-                    'range': vision_range,
-                    'enabled': vision_type != 'normal'
+                    'type': vision_type_final,
+                    'range': vision_range_final,
+                    'enabled': vision_type_final != 'normal'
                 })
                 
                 # Конвертируем
