@@ -498,18 +498,35 @@ def main():
                 )
 
             # Логика определения финального видения
+            # Логика определения финального видения
+            # Начинаем с видения от расы
             final_vision_type = default_vision_type
             final_vision_range = default_vision_range
 
-            # Если есть "Боевой стиль Слепой бой" - он имеет приоритет (10 фт, видит всё)
+            # ✅ Применяем эффекты в порядке ПРИОРИТЕТА:
+            # Приоритет 1: Боевой стиль "Слепой бой" (видит в любой тьме 10 фт)
             if has_blind_fighting:
                 final_vision_type = "blindsight"
-                final_vision_range = 10
-            # Если есть "Взор дьявола" - увеличиваем дальность тёмного зрения до 120 фт
-            elif has_devils_sight and default_vision_type == "darkvision":
-                final_vision_type = "darkvision"
-                final_vision_range = 120
-
+                final_vision_range = 10  # Слепой бой даёт 10 фт слепого видения
+            
+            # Приоритет 2: Дьявольское зрение (даёт darkvision 120)
+            # Если у персонажа уже есть darkvision, увеличиваем дальность до 120
+            # Если нет, добавляем darkvision 120
+            elif has_devils_sight:
+                if default_vision_type == "darkvision":
+                    # Уже есть darkvision от расы - увеличиваем дальность до максимума 120
+                    final_vision_type = "darkvision"
+                    final_vision_range = max(default_vision_range, 120)
+                elif default_vision_type == "normal":
+                    # Нет видения от расы - добавляем darkvision 120
+                    final_vision_type = "darkvision"
+                    final_vision_range = 120
+                else:
+                    # Есть другое видение (truesight, blindsight, tremorsense)
+                    # Дьявольское зрение добавляет darkvision параллельно (но мы показываем основное)
+                    # В этом случае оставляем как есть (можно также дать максимум)
+                    final_vision_type = default_vision_type
+                    final_vision_range = default_vision_range
             st.write("**Видение по умолчанию (на основе расы):**")
             st.write(f"└─ Тип: **{default_vision_type}**, Дальность: **{default_vision_range if default_vision_range > 0 else 'N/A'} ft**")
 
@@ -582,7 +599,7 @@ def main():
                 st.write(line)
 
             # Определяем может ли видеть в магической тьме
-            can_see_magical_darkness = has_blind_fighting or has_devils_sight or final_vision_type in ["truesight", "blindsight"]
+            can_see_magical_darkness = has_blind_fighting or (has_devils_sight and final_vision_type == "darkvision") or final_vision_type in ["truesight", "blindsight"]
 
             if can_see_magical_darkness:
                 st.info("✅ Может видеть в **магической тьме** (например, заклинание Darkness)")
