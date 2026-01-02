@@ -382,7 +382,7 @@ def main():
 
         st.divider()
         st.markdown("**Совместимость:**")
-        st.markdown("- Python 3.6+\n- Foundry VTT v11-v13\n- D&D 5e v4.0+")
+        st.markdown("""- Python 3.6+\n- Foundry VTT v11-v13\n- D&D 5e v4.0+""")
 
     # Основная сетка
     col_upload, col_settings = st.columns([1, 1])
