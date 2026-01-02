@@ -416,6 +416,7 @@ def main():
             key="token_uploader",
             help="PNG, JPG или WEBP - рекомендуется квадратное"
         )
+        
         col_portrait, col_tocken = st.columns([1, 1])
         with col_portrait:
             
@@ -425,7 +426,7 @@ def main():
                 st.image(uploaded_portrait, width=60, use_column_width=True)
                 st.caption("✅ Портрет готов к импорту")
 
-        with col_portrait:
+        with col_tocken:
             
             # Предпросмотр токена (УМЕНЬШЕННЫЙ)
             if uploaded_token:
