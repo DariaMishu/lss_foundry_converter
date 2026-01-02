@@ -416,18 +416,22 @@ def main():
             key="token_uploader",
             help="PNG, JPG или WEBP - рекомендуется квадратное"
         )
+        col_portrait, col_tocken = st.columns([1, 1])
+        with col_portrait:
+            
+            # Предпросмотр портрета (УМЕНЬШЕННЫЙ)
+            if uploaded_portrait:
+                st.markdown("### Предпросмотр портрета:")
+                st.image(uploaded_portrait, width=60, use_column_width=True)
+                st.caption("✅ Портрет готов к импорту")
 
-        # Предпросмотр портрета (УМЕНЬШЕННЫЙ)
-        if uploaded_portrait:
-            st.markdown("### Предпросмотр портрета:")
-            st.image(uploaded_portrait, width=120, use_column_width=False)
-            st.caption("✅ Портрет готов к импорту")
-
-        # Предпросмотр токена (УМЕНЬШЕННЫЙ)
-        if uploaded_token:
-            st.markdown("### Предпросмотр токена:")
-            st.image(uploaded_token, width=120, use_column_width=False)
-            st.caption("✅ Токен готов к импорту")
+        with col_portrait:
+            
+            # Предпросмотр токена (УМЕНЬШЕННЫЙ)
+            if uploaded_token:
+                st.markdown("### Предпросмотр токена:")
+                st.image(uploaded_token, width=60, use_column_width=True)
+                st.caption("✅ Токен готов к импорту")
 
     with col_settings:
         st.header("⚙️ Шаг 2: Настройки")
