@@ -382,11 +382,7 @@ def main():
 
         st.divider()
         st.markdown("**Совместимость:**")
-        st.markdown("""
-        - Python 3.6+
-        - Foundry VTT v11-v13
-        - D&D 5e v4.0+
-        """)
+        st.markdown("- Python 3.6+\n- Foundry VTT v11-v13\n- D&D 5e v4.0+")
 
     # Основная сетка
     col_upload, col_settings = st.columns([1, 1])
@@ -421,16 +417,16 @@ def main():
             help="PNG, JPG или WEBP - рекомендуется квадратное"
         )
 
-        # Предпросмотр портрета
+        # Предпросмотр портрета (УМЕНЬШЕННЫЙ)
         if uploaded_portrait:
             st.markdown("### Предпросмотр портрета:")
-            st.image(uploaded_portrait, width=200, use_column_width=False)
+            st.image(uploaded_portrait, width=120, use_column_width=False)
             st.caption("✅ Портрет готов к импорту")
 
-        # Предпросмотр токена
+        # Предпросмотр токена (УМЕНЬШЕННЫЙ)
         if uploaded_token:
             st.markdown("### Предпросмотр токена:")
-            st.image(uploaded_token, width=200, use_column_width=False)
+            st.image(uploaded_token, width=120, use_column_width=False)
             st.caption("✅ Токен готов к импорту")
 
     with col_settings:
@@ -503,7 +499,92 @@ def main():
                     final_vision_type = "darkvision"
                     final_vision_range = max(default_vision_range if default_vision_type == "darkvision" else 0, 120)
 
-                st.write(f"**Видение:** {final_vision_type} ({final_vision_range} ft)" if final_vision_range > 0 else f"**Видение:** {final_vision_type}")
+                st.write("**Видение по умолчанию (на основе расы):**")
+                st.write(f"└─ Тип: **{default_vision_type}**, Дальность: **{default_vision_range if default_vision_range > 0 else 'N/A'} ft**")
+
+                # ════════════════════════════════════════════════════════════════════════
+                # БЛОК РУЧНОЙ НАСТРОЙКИ ВИДЕНИЯ (ВОССТАНОВЛЕН)
+                # ════════════════════════════════════════════════════════════════════════
+
+                with st.expander("⚙️ Переопределить видение вручную", expanded=False):
+                    manual_vision_choice = st.radio(
+                        "Выбрать тип видения вручную:",
+                        ["1️⃣ Обычное (Normal)",
+                         "2️⃣ Тёмное зрение (Darkvision)",
+                         "3️⃣ Слепое видение (Blindsight)",
+                         "4️⃣ Истинное видение (Truesight)",
+                         "5️⃣ Чувство вибраций (Tremorsense)"],
+                        horizontal=False,
+                        key="manual_vision"
+                    )
+
+                    # Парсим выбор видения
+                    manual_vision_num = int(manual_vision_choice[0])
+                    vision_names = {
+                        1: 'normal',
+                        2: 'darkvision',
+                        3: 'blindsight',
+                        4: 'truesight',
+                        5: 'tremorsense'
+                    }
+                    manual_vision_type = vision_names[manual_vision_num]
+
+                    # Дальность видения
+                    if manual_vision_type != 'normal':
+                        default_ranges = {
+                            'darkvision': 60,
+                            'blindsight': 60,
+                            'truesight': 120,
+                            'tremorsense': 60
+                        }
+                        manual_vision_range = st.number_input(
+                            f"Дальность видения (ft):",
+                            min_value=0,
+                            value=default_ranges.get(manual_vision_type, 60),
+                            step=10,
+                            key="manual_range"
+                        )
+                    else:
+                        manual_vision_range = 0
+
+                    # Флаг: используем ручной выбор
+                    use_manual_override = st.checkbox(
+                        "✓ Использовать ручной выбор видения вместо автоматического",
+                        value=False,
+                        key="use_manual_override"
+                    )
+
+                    if use_manual_override:
+                        final_vision_type = manual_vision_type
+                        final_vision_range = manual_vision_range
+                        st.write(f"└─ **Выбрано вручную:** {manual_vision_choice}")
+                    else:
+                        st.info("💡 Ручной выбор отключен - используется автоматическая финализация видения")
+
+                # ════════════════════════════════════════════════════════════════════════
+                # КОНЕЦ БЛОКА РУЧНОЙ НАСТРОЙКИ ВИДЕНИЯ
+                # ════════════════════════════════════════════════════════════════════════
+
+                st.divider()
+                st.write("**✓ ФИНАЛЬНЫЕ ПАРАМЕТРЫ ВИДЕНИЯ:**")
+                vision_display_lines = []
+                vision_display_lines.append(f"├─ Основное видение: **{final_vision_type}**")
+                if final_vision_range > 0:
+                    vision_display_lines.append(f"├─ Дальность: **{final_vision_range} ft**")
+                if has_devils_sight:
+                    vision_display_lines.append(f"├─ 🔴 Взор дьявола: **видит в магической тьме** (+120 фт)")
+                if has_blind_fighting:
+                    vision_display_lines.append(f"└─ ⚫ Боевой стиль Слепой бой: **видит в любой тьме** (10 фт)")
+
+                for line in vision_display_lines:
+                    st.write(line)
+
+                can_see_magical_darkness = has_blind_fighting or (has_devils_sight and final_vision_type == "darkvision") or final_vision_type in ["truesight", "blindsight"]
+
+                if can_see_magical_darkness:
+                    st.info("✅ Может видеть в **магической тьме**")
+                else:
+                    st.warning("❌ НЕ может видеть в магической тьме")
 
             except Exception as e:
                 st.error(f"❌ Ошибка: {str(e)}")
@@ -603,4 +684,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
